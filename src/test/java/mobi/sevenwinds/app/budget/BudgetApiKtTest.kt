@@ -1,6 +1,8 @@
 package mobi.sevenwinds.app.budget
 
 import io.restassured.RestAssured
+import mobi.sevenwinds.app.author.AuthorRequest
+import mobi.sevenwinds.app.author.AuthorResponse
 import mobi.sevenwinds.common.ServerTest
 import mobi.sevenwinds.common.jsonBody
 import mobi.sevenwinds.common.toResponse
@@ -36,6 +38,33 @@ class BudgetApiKtTest : ServerTest() {
                 Assert.assertEquals(5, response.total)
                 Assert.assertEquals(3, response.items.size)
                 Assert.assertEquals(105, response.totalByType[BudgetType.Приход.name])
+            }
+    }
+
+    @Test
+    fun testAuthorNameFilter() {
+
+        val authorIdOne = addRecord(AuthorRequest("Oleg Ivanov")).id
+        val authorIdTwo = addRecord(AuthorRequest("Semen Petrov")).id
+
+        addRecord(BudgetRecord(2020, 5, 10, BudgetType.Приход,authorIdOne))
+        addRecord(BudgetRecord(2020, 5, 5, BudgetType.Приход))
+        addRecord(BudgetRecord(2020, 5, 20, BudgetType.Приход,authorIdOne))
+        addRecord(BudgetRecord(2020, 5, 30, BudgetType.Приход))
+        addRecord(BudgetRecord(2020, 5, 40, BudgetType.Приход,authorIdTwo))
+        addRecord(BudgetRecord(2030, 1, 1, BudgetType.Расход))
+
+        RestAssured.given()
+            .queryParam("limit", 3)
+            .queryParam("offset", 0)
+            .queryParam("authorName", "LEG")
+            .get("/budget/year/2020/stats")
+            .toResponse<BudgetYearStatsResponse>().let { response ->
+                println("${response.total} / ${response.items} / ${response.totalByType}")
+
+                Assert.assertEquals(2, response.items.size)
+                Assert.assertEquals("Oleg Ivanov", response.items[0].authorName)
+                Assert.assertEquals("Oleg Ivanov", response.items[1].authorName)
             }
     }
 
@@ -82,5 +111,12 @@ class BudgetApiKtTest : ServerTest() {
             .toResponse<BudgetRecord>().let { response ->
                 Assert.assertEquals(record, response)
             }
+    }
+
+    private fun addRecord(record: AuthorRequest): AuthorResponse {
+        return RestAssured.given()
+            .jsonBody(record)
+            .post("/author/add")
+            .toResponse()
     }
 }
